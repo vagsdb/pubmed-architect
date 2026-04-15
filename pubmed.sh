@@ -663,13 +663,19 @@ json.dump(entries, sys.stdout)
         done
         ;;
 
-    # ── mine list [-t tag] [-s status] ────────────────────────────
+    # ── mine list [-t tag] [-s status] [-q text] [--sort field] [-r] [-n max] [--count] [-v] ──
     list|ls)
-        local filter_tag="" filter_status=""
+        local filter_tag="" filter_status="" filter_query="" sort_field="added" reverse="" limit="0" count_only="" verbose=""
         while [[ $# -gt 0 ]]; do
             case "$1" in
-                -t|--tag) filter_tag="$2"; shift 2 ;;
+                -t|--tag)    filter_tag="$2";    shift 2 ;;
                 -s|--status) filter_status="$2"; shift 2 ;;
+                -q|--query)  filter_query="$2";  shift 2 ;;
+                --sort)      sort_field="$2";    shift 2 ;;
+                -r|--reverse) reverse="1";       shift ;;
+                -n|--max)    limit="$2";         shift 2 ;;
+                --count)     count_only="1";     shift ;;
+                -v|--verbose) verbose="1";       shift ;;
                 *) shift ;;
             esac
         done
@@ -678,21 +684,70 @@ json.dump(entries, sys.stdout)
 import sys, json
 
 entries = json.load(sys.stdin)
-tag_f = '${filter_tag}'
-stat_f = '${filter_status}'
+tag_f    = '${filter_tag}'
+stat_f   = '${filter_status}'
+query_f  = '${filter_query}'.lower()
+sort_key = '${sort_field}'
+do_rev   = bool('${reverse}')
+limit    = int('${limit}')
+count_only = bool('${count_only}')
+verbose  = bool('${verbose}')
 
+# ── Filters ──
 if tag_f:
     entries = [e for e in entries if tag_f in e.get('tags', [])]
 if stat_f:
     entries = [e for e in entries if e.get('status', '') == stat_f]
+if query_f:
+    entries = [e for e in entries
+               if query_f in e.get('title', '').lower()
+               or query_f in e.get('authors', '').lower()
+               or query_f in e.get('journal', '').lower()
+               or query_f in e.get('pmid', '')]
+
+# ── Count-only mode ──
+if count_only:
+    print(f'  {len(entries)} article(s)')
+    sys.exit(0)
 
 if not entries:
-    print('  (no articles in mining list)');
+    print('  (no articles match the given filters)')
     sys.exit(0)
+
+# ── Sort ──
+status_order = {'reading': 0, 'queued': 1, 'done': 2, 'skip': 3}
+def sort_val(e):
+    k = sort_key
+    if k == 'status':
+        return status_order.get(e.get('status', ''), 9)
+    if k == 'year':
+        return e.get('year', '0')
+    if k in ('added', 'date'):
+        return e.get('added', '')
+    if k == 'title':
+        return e.get('title', '').lower()
+    if k == 'journal':
+        return e.get('journal', '').lower()
+    if k == 'authors':
+        return e.get('authors', '').lower()
+    if k == 'notes':
+        return len(e.get('notes', []))
+    if k == 'tags':
+        return len(e.get('tags', []))
+    return e.get('added', '')
+
+entries.sort(key=sort_val, reverse=do_rev)
+
+# ── Limit ──
+total = len(entries)
+if limit > 0:
+    entries = entries[:limit]
 
 status_colors = {'queued': '\033[1;33m', 'reading': '\033[1;34m', 'done': '\033[0;32m', 'skip': '\033[2m'}
 
-print(f'  {len(entries)} article(s) flagged for mining:\n')
+showing = f' (showing {len(entries)})' if limit > 0 and total > limit else ''
+print(f'  {total} article(s) flagged for mining{showing}:\n')
+
 for i, e in enumerate(entries, 1):
     sc = status_colors.get(e.get('status',''), '')
     reset = '\033[0m'
@@ -701,6 +756,14 @@ for i, e in enumerate(entries, 1):
     notes_badge = f'  \033[2m[{notes_count} note{\"s\" if notes_count != 1 else \"\"}]\033[0m' if notes_count else ''
     print(f'  {sc}[{e.get(\"status\",\"?\"):>7}]{reset}  \033[1m{e[\"pmid\"]}\033[0m  {e[\"title\"][:75]}')
     print(f'            \033[2m{e.get(\"authors\",\"\")}  •  {e.get(\"journal\",\"\")} ({e.get(\"year\",\"\")})\033[0m  {tags}{notes_badge}')
+    if verbose:
+        added = e.get('added', '')
+        if added:
+            print(f'            \033[2mAdded: {added}\033[0m')
+        notes = e.get('notes', [])
+        if notes:
+            for n in notes:
+                print(f'            \033[2m• {n}\033[0m')
     print()
 "
         ;;
@@ -879,7 +942,16 @@ for tag, count in c.most_common():
 
   SUBCOMMANDS
     mine add    <id> [id …] [-t tags] [-m note]   Flag one or more articles
-    mine list   [-t tag] [-s status]         Show flagged articles
+    mine list   [options]                    Show flagged articles
+                  -t  tag      Filter by tag
+                  -s  status   Filter by status (queued|reading|done|skip)
+                  -q  text     Search titles, authors, journals, PMIDs
+                  --sort field Sort by: added (default), year, title, journal,
+                               authors, status, notes, tags
+                  -r           Reverse sort order
+                  -n  max      Limit output to max articles
+                  --count      Print count only
+                  -v           Verbose — show added date & notes inline
     mine show   <id>                         Full card + abstract + notes
     mine note   <id> <text>                  Append a note
     mine tag    <id> <tag1,tag2>             Add tags
@@ -893,6 +965,10 @@ for tag, count in c.most_common():
     ./pubmed.sh mine add 35901745 -t "methods,CRISPR" -m "Key paper on delivery"
     ./pubmed.sh mine add 10.1038/s41586-023-06291-2 -t "review"
     ./pubmed.sh mine list -t CRISPR
+    ./pubmed.sh mine list -q fibrosis --sort year -r
+    ./pubmed.sh mine list -s queued --sort title
+    ./pubmed.sh mine list -n 5 -v
+    ./pubmed.sh mine list --count
     ./pubmed.sh mine note 35901745 "Table 2 has the IC50 values I need"
     ./pubmed.sh mine status 35901745 reading
     ./pubmed.sh mine show 35901745
