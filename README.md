@@ -64,6 +64,17 @@ python pubmed_insights.py article 10.1038/s41586-023-06291-2
 
 Run `./pubmed.sh help` for the full command reference.
 
+### DOI Error Handling
+
+When a DOI cannot be resolved to a PubMed record, each layer reports the failure differently:
+
+- **GUI (`app.py`)** — an unresolvable DOI returns an empty result set ("No results found"), same as a failed keyword search.
+- **CLI (`pubmed.sh`)** — prints `Error: Could not resolve DOI <doi> to a PMID.` to stderr and aborts the current command (exit code 1). Batch-style commands like `fetch` and `export` that accept multiple identifiers will stop at the first unresolvable DOI.
+- **Python API (`pubmed_api.py`)** — `doi_to_pmids()` silently omits DOIs it cannot resolve; the caller receives a partial mapping. `fetch_details()` and `find_related()` return empty results if none of the identifiers resolve.
+- **Insights engine (`pubmed_insights.py`)** — `_resolve_id()` prints an error to stderr and calls `sys.exit(1)` for an unresolvable DOI. Multi-identifier commands (`mesh`, `meshmap`) exit on the first failure.
+
+A DOI is detected by matching the pattern `10.<4-9 digit registrant>/<suffix>`. Strings that do not match (e.g. plain PMIDs, free-text queries) are passed through unchanged.
+
 ## Notes
 
 - The app talks directly to the free NCBI E-utilities API. No API key is required, but requests are rate-limited to ~3/second. For heavier use, register for a free API key at <https://www.ncbi.nlm.nih.gov/account/> and pass it to `PubMedClient`.
