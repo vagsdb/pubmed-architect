@@ -84,20 +84,37 @@ class PubMedClient:
 
     # ── public API ────────────────────────────────────────────────────
 
-    def search(self, query: str, max_results: int = 20) -> list:
-        """Return a list of PMID strings matching *query*."""
-        data = self._get(
-            "esearch.fcgi",
-            {
-                "db": "pubmed",
-                "term": query,
-                "retmax": max_results,
-                "retmode": "json",
-                "sort": "relevance",
-            },
-        )
+    def search(
+        self,
+        query: str,
+        max_results: int = 20,
+        sort: str = "relevance",
+        from_year: int | None = None,
+        to_year: int | None = None,
+    ) -> tuple[list, int]:
+        """Return (list of PMID strings, total_count) matching *query*.
+
+        *sort* can be ``"relevance"`` (default), ``"pub+date"`` (newest first),
+        or ``"first+author"``.
+        *from_year* / *to_year* restrict publication dates (inclusive).
+        """
+        params: dict = {
+            "db": "pubmed",
+            "term": query,
+            "retmax": max_results,
+            "retmode": "json",
+            "sort": sort,
+        }
+        if from_year:
+            params["mindate"] = f"{from_year}/01/01"
+            params["datetype"] = "pdat"
+        if to_year:
+            params["maxdate"] = f"{to_year}/12/31"
+            params["datetype"] = "pdat"
+        data = self._get("esearch.fcgi", params)
         result = json.loads(data)
-        return result.get("esearchresult", {}).get("idlist", [])
+        sr = result.get("esearchresult", {})
+        return sr.get("idlist", []), int(sr.get("count", 0))
 
     def fetch_details(self, identifiers: list) -> list:
         """Fetch full article metadata for a list of PMIDs or DOIs."""

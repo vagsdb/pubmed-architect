@@ -212,44 +212,116 @@ class PubMedArchitect(tk.Tk):
 # ══════════════════════════════════════════════════════════════════════
 
 
+_ARTICLE_TYPES = {
+    "All": "",
+    "Review": "review[pt]",
+    "Systematic Review": "systematic review[pt]",
+    "Meta-Analysis": "meta-analysis[pt]",
+    "Clinical Trial": "clinical trial[pt]",
+    "Randomized Controlled Trial": "randomized controlled trial[pt]",
+    "Observational Study": "observational study[pt]",
+    "Case Reports": "case reports[pt]",
+}
+
+_SORT_OPTIONS = {
+    "Relevance": "relevance",
+    "Date (newest)": "pub+date",
+    "First Author": "first+author",
+}
+
+_MAX_HISTORY = 20
+
+
 class SearchTab(ttk.Frame):
     def __init__(self, parent, app: PubMedArchitect):
         super().__init__(parent)
         self.app = app
+        self._search_history: list[str] = []
+        self._filtered_indices: list[int] = []  # maps listbox row → _search_results index
         self._build()
 
     def _build(self):
-        # ── top bar ──
+        # ── row 1: query + search button ──
         bar = ttk.Frame(self)
-        bar.pack(fill=tk.X, padx=8, pady=8)
+        bar.pack(fill=tk.X, padx=8, pady=(8, 2))
 
-        ttk.Label(bar, text="Search PubMed (query, PMID, or DOI):").pack(side=tk.LEFT)
+        ttk.Label(bar, text="Search PubMed:").pack(side=tk.LEFT)
         self.query_var = tk.StringVar()
-        entry = ttk.Entry(bar, textvariable=self.query_var, width=60)
-        entry.pack(side=tk.LEFT, padx=6)
-        entry.bind("<Return>", lambda _: self._do_search())
+        self.query_cb = ttk.Combobox(bar, textvariable=self.query_var, width=55)
+        self.query_cb.pack(side=tk.LEFT, padx=6)
+        self.query_cb.bind("<Return>", lambda _: self._do_search())
 
         ttk.Label(bar, text="Max:").pack(side=tk.LEFT)
         self.max_var = tk.IntVar(value=20)
-        ttk.Spinbox(bar, from_=5, to=100, width=5, textvariable=self.max_var).pack(
+        ttk.Spinbox(bar, from_=5, to=200, width=5, textvariable=self.max_var).pack(
             side=tk.LEFT, padx=(2, 8)
         )
         ttk.Button(bar, text="Search", command=self._do_search).pack(side=tk.LEFT)
+        ttk.Button(bar, text="Clear", command=self._clear_search).pack(side=tk.LEFT, padx=4)
+
+        # ── row 2: advanced filters ──
+        filt = ttk.LabelFrame(self, text="Filters")
+        filt.pack(fill=tk.X, padx=8, pady=(0, 4))
+
+        frow = ttk.Frame(filt)
+        frow.pack(fill=tk.X, padx=6, pady=4)
+
+        ttk.Label(frow, text="Type:").pack(side=tk.LEFT)
+        self.type_var = tk.StringVar(value="All")
+        type_cb = ttk.Combobox(
+            frow, textvariable=self.type_var, values=list(_ARTICLE_TYPES.keys()),
+            state="readonly", width=22,
+        )
+        type_cb.pack(side=tk.LEFT, padx=(2, 12))
+
+        ttk.Label(frow, text="Sort:").pack(side=tk.LEFT)
+        self.sort_var = tk.StringVar(value="Relevance")
+        sort_cb = ttk.Combobox(
+            frow, textvariable=self.sort_var, values=list(_SORT_OPTIONS.keys()),
+            state="readonly", width=16,
+        )
+        sort_cb.pack(side=tk.LEFT, padx=(2, 12))
+
+        ttk.Label(frow, text="From year:").pack(side=tk.LEFT)
+        self.from_year_var = tk.StringVar()
+        ttk.Entry(frow, textvariable=self.from_year_var, width=6).pack(side=tk.LEFT, padx=(2, 8))
+
+        ttk.Label(frow, text="To year:").pack(side=tk.LEFT)
+        self.to_year_var = tk.StringVar()
+        ttk.Entry(frow, textvariable=self.to_year_var, width=6).pack(side=tk.LEFT, padx=(2, 8))
 
         # ── paned: results list | detail ──
         pw = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
         pw.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 8))
 
-        # left: results list
+        # left: results list + local filter
         left = ttk.Frame(pw)
         pw.add(left, weight=2)
 
-        self.result_list = tk.Listbox(left, font=("TkDefaultFont", 11))
+        # result count label
+        top_left = ttk.Frame(left)
+        top_left.pack(fill=tk.X)
+        self.count_var = tk.StringVar()
+        ttk.Label(top_left, textvariable=self.count_var, font=("TkDefaultFont", 10)).pack(
+            side=tk.LEFT
+        )
+
+        self.result_list = tk.Listbox(left, font=("TkDefaultFont", 11), selectmode=tk.EXTENDED)
         sb = ttk.Scrollbar(left, command=self.result_list.yview)
         self.result_list.config(yscrollcommand=sb.set)
         sb.pack(side=tk.RIGHT, fill=tk.Y)
         self.result_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.result_list.bind("<<ListboxSelect>>", self._on_select)
+
+        # local filter entry below the list
+        filter_bar = ttk.Frame(left)
+        filter_bar.pack(fill=tk.X, pady=(2, 0), side=tk.BOTTOM)
+        ttk.Label(filter_bar, text="Filter:").pack(side=tk.LEFT)
+        self.filter_var = tk.StringVar()
+        self.filter_var.trace_add("write", lambda *_: self._apply_filter())
+        ttk.Entry(filter_bar, textvariable=self.filter_var, width=30).pack(
+            side=tk.LEFT, padx=4, fill=tk.X, expand=True
+        )
 
         # right: detail + buttons
         right = ttk.Frame(pw)
@@ -266,9 +338,45 @@ class SearchTab(ttk.Frame):
         ttk.Button(btn_bar, text="Add to Citations", command=self._add_selected).pack(
             side=tk.LEFT, padx=4
         )
+        ttk.Button(btn_bar, text="Add All Selected", command=self._add_all_selected).pack(
+            side=tk.LEFT, padx=4
+        )
         ttk.Button(btn_bar, text="Open in Browser", command=self._open_in_browser).pack(
             side=tk.LEFT, padx=4
         )
+
+    # ── helpers ──
+
+    def _push_history(self, query: str):
+        """Add a query to the search history dropdown (most recent first)."""
+        if query in self._search_history:
+            self._search_history.remove(query)
+        self._search_history.insert(0, query)
+        self._search_history = self._search_history[:_MAX_HISTORY]
+        self.query_cb["values"] = self._search_history
+
+    def _parse_year(self, var: tk.StringVar) -> int | None:
+        txt = var.get().strip()
+        if txt and txt.isdigit() and len(txt) == 4:
+            return int(txt)
+        return None
+
+    def _build_query(self, q: str) -> str:
+        """Append article-type filter tag to the raw query if selected."""
+        type_tag = _ARTICLE_TYPES.get(self.type_var.get(), "")
+        if type_tag:
+            q = f"({q}) AND {type_tag}"
+        return q
+
+    def _clear_search(self):
+        self.query_var.set("")
+        self.filter_var.set("")
+        self.result_list.delete(0, tk.END)
+        self.app._search_results = []
+        self._filtered_indices = []
+        self.count_var.set("")
+        self._show_detail("")
+        self.app.set_status("Ready")
 
     # ── actions ──
 
@@ -276,38 +384,83 @@ class SearchTab(ttk.Frame):
         q = self.query_var.get().strip()
         if not q:
             return
+        self._push_history(q)
         self.app.set_status(f'Searching PubMed for "{q}" ...')
         self.result_list.delete(0, tk.END)
+        self.filter_var.set("")
         self._show_detail("Searching…")
 
         max_results = self.max_var.get()
+        sort_key = _SORT_OPTIONS.get(self.sort_var.get(), "relevance")
+        from_yr = self._parse_year(self.from_year_var)
+        to_yr = self._parse_year(self.to_year_var)
+        full_q = self._build_query(q)
 
         def _search():
             # Direct lookup when the input is a DOI or PMID
             if self.app.client.is_doi(q) or q.isdigit():
-                return self.app.client.fetch_details([q])
-            pmids = self.app.client.search(q, max_results)
-            return self.app.client.fetch_details(pmids)
+                articles = self.app.client.fetch_details([q])
+                return articles, len(articles)
+            pmids, total = self.app.client.search(
+                full_q, max_results, sort=sort_key, from_year=from_yr, to_year=to_yr,
+            )
+            articles = self.app.client.fetch_details(pmids)
+            return articles, total
 
-        def _done(articles, err):
+        def _done(result, err):
             if err:
                 self.app.set_status(f"Error: {err}")
                 self._show_detail(f"Error: {err}")
                 return
+            articles, total = result
             self.app._search_results = articles or []
-            for i, a in enumerate(self.app._search_results):
-                self.result_list.insert(tk.END, f"[{i+1}] {a['title'][:100]}")
-            self.app.set_status(f"Found {len(self.app._search_results)} results")
+            self._populate_list()
+            shown = len(self.app._search_results)
+            if total > shown:
+                self.count_var.set(f"Showing {shown} of {total:,} results")
+            else:
+                self.count_var.set(f"{shown} results")
+            self.app.set_status(
+                f"Found {shown} results" + (f" (of {total:,} total)" if total > shown else "")
+            )
             if not articles:
                 self._show_detail("No results found.")
 
         _threaded(_search, lambda r, e: self.app.schedule(_done, r, e))
 
+    def _populate_list(self):
+        """Fill the listbox from _search_results, respecting the local filter."""
+        self.result_list.delete(0, tk.END)
+        filt = self.filter_var.get().strip().lower()
+        self._filtered_indices = []
+        for i, a in enumerate(self.app._search_results):
+            label = self._result_label(i, a)
+            if filt and filt not in label.lower() and filt not in a["abstract"].lower():
+                continue
+            self._filtered_indices.append(i)
+            self.result_list.insert(tk.END, label)
+
+    @staticmethod
+    def _result_label(idx: int, a: dict) -> str:
+        """Build a richer one-line label for the result list."""
+        first_author = a["authors"][0].split()[0] if a["authors"] else "?"
+        year = a["year"] or "?"
+        journal = a["journal"][:20] if a["journal"] else ""
+        title = a["title"][:80]
+        return f"[{idx+1}] {first_author} ({year}) {journal} — {title}"
+
+    def _apply_filter(self):
+        """Re-populate the listbox when the local filter text changes."""
+        if not self.app._search_results:
+            return
+        self._populate_list()
+
     def _on_select(self, _event=None):
         sel = self.result_list.curselection()
         if not sel:
             return
-        a = self.app._search_results[sel[0]]
+        real_idx = self._filtered_indices[sel[0]]
+        a = self.app._search_results[real_idx]
         self._show_article(a)
 
     def _show_detail(self, text: str):
@@ -338,13 +491,37 @@ class SearchTab(ttk.Frame):
         sel = self.result_list.curselection()
         if not sel:
             return
-        self.app.add_citation(self.app._search_results[sel[0]])
+        real_idx = self._filtered_indices[sel[0]]
+        self.app.add_citation(self.app._search_results[real_idx])
+
+    def _add_all_selected(self):
+        """Add every currently-selected result to citations."""
+        sel = self.result_list.curselection()
+        if not sel:
+            return
+        added = 0
+        for s in sel:
+            real_idx = self._filtered_indices[s]
+            a = self.app._search_results[real_idx]
+            if not any(
+                c["pmid"] == a["pmid"]
+                or (c.get("doi") and c["doi"] == a.get("doi"))
+                for c in self.app.citations
+            ):
+                self.app.citations.append(a)
+                added += 1
+        if added:
+            self.app.cite_tab.refresh()
+            self.app.set_status(f"Added {added} citation{'s' if added != 1 else ''}")
+        else:
+            messagebox.showinfo("Info", "All selected articles are already in your citations.")
 
     def _open_in_browser(self):
         sel = self.result_list.curselection()
         if not sel:
             return
-        a = self.app._search_results[sel[0]]
+        real_idx = self._filtered_indices[sel[0]]
+        a = self.app._search_results[real_idx]
         import webbrowser
 
         url = (
@@ -818,7 +995,7 @@ def _ask_search(client: PubMedClient, question: str, max_results: int) -> dict:
     q_tokens = set(re.findall(r'\w{3,}', question.lower())) - _STOPWORDS
 
     # Search + fetch
-    pmids = client.search(question, max_results)
+    pmids, _total = client.search(question, max_results)
     if not pmids:
         return {"report": "No PubMed results for your question.\n\nTry rephrasing or using more specific medical terms.",
                 "sources": []}
