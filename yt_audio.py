@@ -30,6 +30,11 @@ def download_audio(url: str, output_dir: str | Path = ".") -> Path:
                 "preferredquality": "192",
             }
         ],
+        # YouTube serves JS challenges (signature + n-param) that yt-dlp must
+        # solve to unlock most audio formats. "ejs:github" lets it fetch the
+        # solver scripts on demand; without it many videos return zero formats.
+        # Requires a JS runtime on PATH (deno preferred, node also works).
+        "remote_components": {"ejs:github"},
         "quiet": False,
         "noplaylist": True,
     }
