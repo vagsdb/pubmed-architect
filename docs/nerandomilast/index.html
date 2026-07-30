@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#083b54">
+  <title>Ημερολόγιο Νεραντομιλάστης</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="lock" class="lock">
+    <div class="lock-card">
+      <h2>🫁 Ημερολόγιο Νεραντομιλάστης</h2>
+      <p>Τα δεδομένα αποθηκεύονται κρυπτογραφημένα μόνο στη συσκευή και δεν αποστέλλονται στον διακομιστή.</p>
+      <div id="create-box">
+        <label>Νέος κωδικός (τουλάχιστον 6 χαρακτήρες)<input id="new-pass" type="password"></label>
+        <label>Επιβεβαίωση<input id="confirm-pass" type="password"></label>
+        <button id="create-vault" class="primary">Δημιουργία ασφαλούς ημερολογίου</button>
+      </div>
+      <div id="unlock-box" class="hidden">
+        <label>Κωδικός<input id="unlock-pass" type="password"></label>
+        <button id="unlock-vault" class="primary">Ξεκλείδωμα</button>
+      </div>
+      <div id="lock-message" class="alert danger hidden"></div>
+      <p class="note">Ο κωδικός δεν ανακτάται. Διατηρήστε κρυπτογραφημένο backup.</p>
+    </div>
+  </div>
+
+  <div id="app" class="hidden">
+    <header>
+      <h1>Ημερολόγιο Θεραπείας και Φαρμακοεπαγρύπνησης με Νεραντομιλάστη</h1>
+      <div><button id="header-backup" class="soft">Backup</button><button id="lock-app" class="soft">🔒</button></div>
+    </header>
+    <nav id="navigation"></nav>
+    <main>
+      <section id="dashboard" class="page active">
+        <div class="hero"><h2>Πίνακας παρακολούθησης</h2><p>Συμμόρφωση, ανοχή και εκκρεμότητες φαρμακοεπαγρύπνησης.</p></div>
+        <div id="urgent-alerts"></div><div id="kpis" class="kpis"></div>
+        <div class="card"><h3>Πρόσφατες καταγραφές</h3><div id="recent-entries"></div></div>
+      </section>
+
+      <section id="today" class="page">
+        <div class="hero"><h2>Σημερινή καταγραφή</h2><p id="today-label"></p></div>
+        <form id="daily-form" class="card"><div id="daily-fields" class="grid"></div><div class="actions"><button type="reset" class="soft">Καθαρισμός</button><button class="primary">Αποθήκευση</button></div></form>
+      </section>
+
+      <section id="history" class="page">
+        <div class="hero"><h2>Ημερήσιο ιστορικό</h2></div>
+        <div class="card"><div class="actions"><button id="daily-csv" class="soft">Εξαγωγή CSV</button></div><div id="daily-table"></div></div>
+      </section>
+
+      <section id="adverse" class="page">
+        <div class="hero"><h2>Ανεπιθύμητα συμβάντα</h2><p>Μία εγγραφή ανά διακριτό συμβάν.</p></div>
+        <form id="ae-form" class="card"><div id="ae-fields" class="grid"></div><h3>Κριτήρια κανονιστικής σοβαρότητας</h3><div id="serious-fields" class="checks"></div><div class="actions"><button type="reset" class="soft">Καθαρισμός</button><button class="primary">Αποθήκευση AE</button></div></form>
+        <div class="card"><div id="ae-table"></div></div>
+      </section>
+
+      <section id="medications" class="page">
+        <div class="hero"><h2>Συγχορηγούμενα φάρμακα</h2></div>
+        <form id="med-form" class="card"><div id="med-fields" class="grid"></div><div class="actions"><button type="reset" class="soft">Καθαρισμός</button><button class="primary">Αποθήκευση</button></div></form>
+        <div class="card"><div id="med-table"></div></div>
+      </section>
+
+      <section id="special" class="page">
+        <div class="hero"><h2>Ειδικές καταστάσεις</h2><p>Σφάλμα λήψης, υπερδοσολογία, κύηση, έλλειψη αποτελεσματικότητας, παράπονο ποιότητας κ.ά.</p></div>
+        <form id="special-form" class="card"><div id="special-fields" class="grid"></div><div class="actions"><button type="reset" class="soft">Καθαρισμός</button><button class="primary">Αποθήκευση</button></div></form>
+        <div class="card"><div id="special-table"></div></div>
+      </section>
+
+      <section id="profile" class="page">
+        <div class="hero"><h2>Προφίλ ασθενούς και έκθεση</h2><p>Χρησιμοποιήστε κωδικοποιημένο ID, όχι ονοματεπώνυμο ή ΑΜΚΑ.</p></div>
+        <form id="profile-form" class="card"><div id="profile-fields" class="grid"></div><div class="actions"><button class="primary">Αποθήκευση προφίλ</button></div></form>
+      </section>
+
+      <section id="export" class="page">
+        <div class="hero"><h2>Εξαγωγή και ασφάλεια</h2></div>
+        <div class="grid two">
+          <div class="card"><h3>Κρυπτογραφημένο backup</h3><button id="backup" class="primary">Λήψη backup</button><label>Εισαγωγή backup<input id="import-backup" type="file" accept=".json"></label></div>
+          <div class="card"><h3>Αρχεία αξιολόγησης</h3><button id="export-json" class="soft">Πλήρες JSON</button><button id="export-ae-csv" class="soft">AE CSV</button><p class="note">Τα αποκρυπτογραφημένα αρχεία είναι εμπιστευτικά.</p></div>
+          <div class="card"><h3>Σημαντικό</h3><p>Η εφαρμογή δεν υποβάλλει αυτόματα αναφορές. Η κλινική/PV αξιολόγηση, η κωδικοποίηση MedDRA και η επίσημη υποβολή γίνονται από την αρμόδια διαδικασία.</p></div>
+          <div class="card"><h3>Οριστική διαγραφή</h3><button id="erase" class="danger-button">Διαγραφή όλων</button></div>
+        </div>
+      </section>
+
+      <section id="info" class="page">
+        <div class="hero"><h2>Οδηγίες και απόρρητο</h2></div>
+        <div class="card"><p>Δεν υπάρχει backend, analytics ή αυτόματος συγχρονισμός. Τα στοιχεία παραμένουν κρυπτογραφημένα στον browser.</p><p>Αίμα ή μαύρα κόπρανα, σκέψεις αυτοβλάβης, σοβαρή επιδείνωση δύσπνοιας, λιποθυμία, σοβαρή αλλεργική αντίδραση, αδυναμία ενυδάτωσης ή σημαντική πτώση SpO₂ απαιτούν άμεση ιατρική αξιολόγηση. Σε επείγον περιστατικό καλέστε 112.</p><p>Η εφαρμογή είναι εργαλείο πρωτογενούς καταγραφής και δεν υποκαθιστά ιατρική απόφαση.</p></div>
+      </section>
+    </main>
+  </div>
+  <script src="schemas.js"></script><script src="storage.js"></script><script src="app.js"></script>
+</body></html>
