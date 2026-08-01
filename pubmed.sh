@@ -179,7 +179,7 @@ json.dump(articles, sys.stdout, indent=2)
 }
 
 _format_citation() {
-    # $1 = format (apa|vancouver|bibtex), stdin = JSON article object
+    # $1 = format (apa|vancouver|bibtex|ris), stdin = JSON article object
     python3 -c "
 import sys, json
 fmt = '$1'
@@ -204,6 +204,23 @@ elif fmt == 'bibtex':
     print(f\"  doi     = {{{a['doi']}}},\")
     print(f\"  pmid    = {{{a['pmid']}}}\")
     print('}')
+elif fmt == 'ris':
+    print('TY  - JOUR')
+    for au in a['authors']:
+        print(f'AU  - {au}')
+    print(f'TI  - {a[\"title\"]}')
+    print(f'JO  - {a[\"journal\"]}')
+    print(f'PY  - {a[\"year\"]}')
+    if a['volume']:  print(f'VL  - {a[\"volume\"]}')
+    if a['issue']:   print(f'IS  - {a[\"issue\"]}')
+    pg = a.get('pages', '')
+    if pg:
+        parts = pg.split('-', 1)
+        print(f'SP  - {parts[0]}')
+        if len(parts) == 2: print(f'EP  - {parts[1]}')
+    if a['doi']:     print(f'DO  - {a[\"doi\"]}')
+    print(f'AN  - {a[\"pmid\"]}')
+    print('ER  - ')
 else:  # vancouver
     ref = a['doi'] and f\"doi: {a['doi']}\" or f\"PMID: {a['pmid']}\"
     print(f\"{auths}. {a['title']} {a['journal']}. {a['year']}{('; ' + a['volume']) if a['volume'] else ''}{('(' + a['issue'] + ')') if a['issue'] else ''}{(':' + a['pages']) if a['pages'] else ''}. {ref}\")
@@ -981,6 +998,65 @@ MEOF
 }
 
 # ══════════════════════════════════════════════════════════════════════
+#  Elite commands — thin wrappers around pubmed_insights.py
+# ══════════════════════════════════════════════════════════════════════
+
+cmd_pico() {
+    # PICO framework query builder
+    # Usage: pico -P <pop> -I <int> [-C <cmp>] -O <out> [-n max] [-f rct|review|meta]
+    [[ $# -eq 0 ]] && {
+        echo "${RED}Usage:${RESET} pubmed.sh pico -P <population> -I <intervention> [-C <comparison>] -O <outcome> [-n max] [-f rct|review|meta|ct]"
+        echo "  Example: ./pubmed.sh pico -P \"type 2 diabetes\" -I \"metformin\" -O \"HbA1c\" -f rct"
+        return 1
+    }
+    python3 "${SCRIPT_DIR}/pubmed_insights.py" pico "$@"
+}
+
+cmd_author() {
+    # Deep author profile
+    [[ -z "${1:-}" ]] && { echo "${RED}Usage:${RESET} pubmed.sh author <name> [-n max]  (e.g. \"Smith J\")"; return 1; }
+    python3 "${SCRIPT_DIR}/pubmed_insights.py" author "$@"
+}
+
+cmd_digest() {
+    # Recent-literature digest
+    [[ -z "${1:-}" ]] && { echo "${RED}Usage:${RESET} pubmed.sh digest <query> [-d days] [-n max]"; return 1; }
+    python3 "${SCRIPT_DIR}/pubmed_insights.py" digest "$@"
+}
+
+cmd_fulltext() {
+    # PMC full-text availability check
+    [[ -z "${1:-}" ]] && { echo "${RED}Usage:${RESET} pubmed.sh fulltext <id>  (PMID or DOI)"; return 1; }
+    python3 "${SCRIPT_DIR}/pubmed_insights.py" fulltext "$@"
+}
+
+cmd_heatmap() {
+    # Year × MeSH topic density heatmap of mined collection
+    python3 "${SCRIPT_DIR}/pubmed_insights.py" heatmap
+}
+
+cmd_network() {
+    # Co-authorship network of mined collection
+    python3 "${SCRIPT_DIR}/pubmed_insights.py" network
+}
+
+cmd_matrix() {
+    # Pairwise MeSH similarity matrix
+    [[ $# -lt 2 ]] && { echo "${RED}Usage:${RESET} pubmed.sh matrix <id1> <id2> [id3 …]  (PMID or DOI)"; return 1; }
+    python3 "${SCRIPT_DIR}/pubmed_insights.py" matrix "$@"
+}
+
+cmd_ris() {
+    # Export one or more articles in RIS format (Zotero / Mendeley / EndNote)
+    local -a raw_ids=()
+    while [[ $# -gt 0 ]]; do
+        raw_ids+=("$1"); shift
+    done
+    [[ ${#raw_ids[@]} -eq 0 ]] && { echo "${RED}Usage:${RESET} pubmed.sh ris <id> [id …]  (PMID or DOI)"; return 1; }
+    cmd_export "${raw_ids[@]}" -f ris
+}
+
+# ══════════════════════════════════════════════════════════════════════
 #  Insights — delegates to pubmed_insights.py
 # ══════════════════════════════════════════════════════════════════════
 
@@ -1529,79 +1605,109 @@ if core and rare:
 cmd_help() {
     cat <<'EOF'
 
-  ╔══════════════════════════════════════════════════════════╗
-  ║              PubMed Architect — CLI                     ║
-  ╚══════════════════════════════════════════════════════════╝
+  ╔══════════════════════════════════════════════════════════════╗
+  ║              PubMed Architect — CLI                         ║
+  ╚══════════════════════════════════════════════════════════════╝
 
   IDENTIFIERS
-    Every <id> below accepts either a PMID (e.g. 35901745)
-    or a DOI (e.g. 10.1038/s41586-023-06291-2).
+    Every <id> accepts a PMID (35901745) or DOI (10.1038/s41586-023-06291-2).
     DOIs are automatically resolved to PMIDs via NCBI.
 
   USAGE
     ./pubmed.sh <command> [arguments]
 
-  COMMANDS
-    search  <query> [-n max]        Search PubMed
-    fetch   <id> [id …]             Fetch article JSON metadata
-    related <id> [-n max]           Discover related articles
-    cite    <id> [-f format]        Generate a formatted citation
-    abstract <id>                   Print the abstract
-    open    <id>                    Open article in browser (DOI → doi.org)
-    batch   <file>                  Run queries from a file (one per line)
-    mesh    <id> [id …]             Show MeSH terms (any number of articles)
-    trends  <query> [-y years]      Publication-count bar chart by year
-    export  <id …> [-f format]     Export multiple citations
-    mine    <sub> [args]            Flag articles to mine (mine help for more)
-    insights <sub> [args]           Research intelligence engine
-      article  <id>                   Deep breakdown: study type, abstract stats, MeSH, funding
-      mined                           Cross-analysis of all mined articles
-      compare  <id1> <id2>            Side-by-side: Jaccard similarity, stats, funding, refs
-      gaps                            Missing study types, unexplored MeSH, co-occurrence clusters
-      rank     <query>                Score & rank mined articles by relevance
-      timeline                        Chronological publication view
-      brief                           One-page research brief of your collection
-      scan     <query> [-n max]         Live search → MeSH/keyword landscape of a topic
-      ask      <question> [-n max]       Ask a question — evidence synthesis from PubMed
-      mesh     <id> [id …]            MeSH terms for one or more articles
-      meshmap  <id> [id …]            Cross-article MeSH analysis (shared, unique, frequency)
-    help                            Show this help
+  ── Core Commands ──────────────────────────────────────────────
+
+    search   <query> [-n max]          Search PubMed
+    fetch    <id> [id …]               Fetch full article JSON metadata
+    related  <id> [-n max]             Discover related articles
+    cite     <id> [-f format]          Generate a formatted citation
+    abstract <id>                      Print the abstract
+    open     <id>                      Open article in browser
+    batch    <file>                    Run queries from a file (one per line)
+    mesh     <id> [id …]               Show MeSH terms
+    trends   <query> [-y years]        Publication-count bar chart by year
+    export   <id …> [-f format]        Export multiple citations
+
+  ── Elite Commands ─────────────────────────────────────────────
+
+    pico     -P pop -I int [-C cmp] -O out [-n max] [-f type]
+                                       PICO framework → precision query builder
+    author   <name> [-n max]           Deep author profile: history, themes, co-authors
+    digest   <query> [-d days] [-n max] Recent-literature digest (default: 90 days)
+    fulltext <id>                      Check PMC free full-text availability
+    heatmap                            Year × MeSH density heatmap of mined collection
+    network                            Co-authorship network of mined collection
+    matrix   <id> [id …]               Pairwise MeSH similarity matrix
+    ris      <id> [id …]               Export as RIS (Zotero / Mendeley / EndNote)
+
+  ── Mining Workflow ────────────────────────────────────────────
+
+    mine add    <id> [id …] [-t tags] [-m note]   Flag articles
+    mine list   [-t tag] [-s status] [-q text] [--sort field] [-r] [-n max] [-v]
+    mine show   <id>                              Full card + abstract + notes
+    mine note   <id> <text>                       Append a timestamped note
+    mine tag    <id> <tag1,tag2>                  Add tags
+    mine status <id> <status>                     Set status (queued|reading|done|skip)
+    mine remove <id>                              Un-flag an article
+    mine export [-f fmt]                          Export mined as citations
+    mine tags                                     List all tags in use
+    mine reset                                    Wipe the mining list
+
+  ── Insights Engine ────────────────────────────────────────────
+
+    insights article  <id>             Deep breakdown: study type, abstract, MeSH, funding
+    insights mined                     Cross-analysis of all mined articles
+    insights compare  <id1> <id2>      Side-by-side: Jaccard, stats, funding, refs
+    insights gaps                      Missing study types, unexplored MeSH
+    insights rank     <query>          Score & rank mined articles by relevance
+    insights timeline                  Chronological publication view
+    insights brief                     One-page research brief
+    insights scan     <query> [-n max] Live search → MeSH/keyword landscape
+    insights ask      <question> [-n]  Evidence synthesis from PubMed
+    insights mesh     <id> [id …]      MeSH terms per article
+    insights meshmap  <id> [id …]      Cross-article MeSH analysis
 
   FORMATS  (-f)
-    apa        APA 7th edition style
+    apa        APA 7th edition
     vancouver  Vancouver / NLM (default)
     bibtex     BibTeX entry
+    ris        RIS (Zotero, Mendeley, EndNote)
 
-  EXAMPLES
+  EXAMPLES — Core
     ./pubmed.sh search "CRISPR cancer therapy" -n 10
     ./pubmed.sh cite 35901745 -f apa
-    ./pubmed.sh cite 10.1038/s41586-023-06291-2 -f apa
-    ./pubmed.sh related 35901745 -n 5
-    ./pubmed.sh fetch 10.1016/j.cell.2023.04.007
-    ./pubmed.sh trends "machine learning radiology" -y 15
-    ./pubmed.sh mesh 35901745
-    ./pubmed.sh export 35901745 10.1038/s41586-023-06291-2 -f bibtex > refs.bib
+    ./pubmed.sh cite 10.1038/s41586-023-06291-2 -f bibtex
+    ./pubmed.sh export 35901745 34567890 -f bibtex > refs.bib
     ./pubmed.sh abstract 35901745 | pbcopy
-    ./pubmed.sh open 10.1038/s41586-023-06291-2
+    ./pubmed.sh trends "machine learning radiology" -y 15
+
+  EXAMPLES — Elite
+    ./pubmed.sh pico -P "type 2 diabetes" -I "metformin" -O "HbA1c" -f rct
+    ./pubmed.sh author "Bhatt DL" -n 50
+    ./pubmed.sh digest "CRISPR cancer" -d 60
+    ./pubmed.sh digest "idiopathic pulmonary fibrosis" -d 180 -n 20
+    ./pubmed.sh fulltext 35901745
+    ./pubmed.sh fulltext 10.1038/s41586-023-06291-2
+    ./pubmed.sh ris 35901745 34567890 > refs.ris
+    ./pubmed.sh matrix 35901745 34567890 33456789
+    ./pubmed.sh heatmap
+    ./pubmed.sh network
+
+  EXAMPLES — Mining & Insights
     ./pubmed.sh mine add 35901745 -t "key,CRISPR" -m "Must read"
-    ./pubmed.sh mine add 10.1038/s41586-023-06291-2 -t "methods"
-    ./pubmed.sh mine list
+    ./pubmed.sh mine list -t CRISPR -s reading -v
     ./pubmed.sh insights article 35901745
-    ./pubmed.sh insights mined
-    ./pubmed.sh insights compare 35901745 34567890
-    ./pubmed.sh insights rank "idiopathic pulmonary fibrosis treatment"
-    ./pubmed.sh insights timeline
-    ./pubmed.sh insights brief
-    ./pubmed.sh insights mesh 35901745 34567890
-    ./pubmed.sh insights meshmap 35901745 10.1038/s41586-023-06291-2
     ./pubmed.sh insights ask "Does metformin reduce cancer risk?"
-    ./pubmed.sh insights ask "What is the role of gut microbiome in depression?" -n 80
+    ./pubmed.sh insights scan "idiopathic pulmonary fibrosis" -n 100
+    ./pubmed.sh insights compare 35901745 34567890
+    ./pubmed.sh insights meshmap 35901745 34567890 33456789
 
   PIPING
-    Combine with standard tools:
-      ./pubmed.sh fetch 35901745 | jq '.[] .title'
-      ./pubmed.sh search "glioblastoma" | grep PMID
-      ./pubmed.sh batch queries.txt > results.txt
+    ./pubmed.sh fetch 35901745 | jq '.[] .title'
+    ./pubmed.sh search "glioblastoma" | grep PMID
+    ./pubmed.sh batch queries.txt > results.txt
+    ./pubmed.sh ris 35901745 34567890 | xclip -selection clipboard
 
 EOF
 }
@@ -1626,6 +1732,15 @@ case "$cmd" in
     export)   cmd_export "$@" ;;
     mine)     cmd_mine "$@" ;;
     insights) cmd_insights "$@" ;;
+    # ── Elite commands ──
+    pico)     cmd_pico "$@" ;;
+    author)   cmd_author "$@" ;;
+    digest)   cmd_digest "$@" ;;
+    fulltext) cmd_fulltext "$@" ;;
+    heatmap)  cmd_heatmap "$@" ;;
+    network)  cmd_network "$@" ;;
+    matrix)   cmd_matrix "$@" ;;
+    ris)      cmd_ris "$@" ;;
     help|-h|--help) cmd_help ;;
     *)
         echo "${RED}Unknown command:${RESET} ${cmd}"
