@@ -226,6 +226,7 @@ function download(filename, content, type = "text/plain") {
 
 function updateCitationSelect() {
   $("#insert-citation").innerHTML = `<option value="">Insert citation…</option>${library.map((article, index) => `<option value="${index}">${escapeHTML((article.authors[0] || "Source").split(" ")[0])} (${escapeHTML(article.year)}) — ${escapeHTML(article.title.slice(0, 65))}</option>`).join("")}`;
+  window.AIReader?.refreshBuilderCitations(library);
 }
 
 function renderBuilder() {

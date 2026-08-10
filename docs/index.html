@@ -95,6 +95,31 @@
             <select id="insert-citation"><option value="">Insert citation…</option></select>
             <button id="insert-citation-button" class="secondary">Insert</button>
           </div>
+          <section class="citation-writer" aria-labelledby="citation-writer-title">
+            <div class="citation-writer-head">
+              <div><p class="eyebrow">Grounded writing</p><h3 id="citation-writer-title"><span class="ai-spark">✦</span> AI Citation Writer</h3><p>Generate manuscript-ready sentences supported only by selected PubMed records.</p></div>
+              <div class="citation-writer-provider"><select id="sentence-provider" aria-label="Sentence AI provider"><option value="openai">OpenAI</option><option value="anthropic">Claude</option></select><button id="sentence-ai-settings" class="secondary" type="button">Settings</button></div>
+            </div>
+            <div class="citation-writer-grid">
+              <div class="citation-source-column">
+                <strong>Select evidence <span id="sentence-source-count">0 selected</span></strong>
+                <div id="sentence-citation-list" class="sentence-citation-list"><p class="citation-writer-empty">Save citations to your library first.</p></div>
+              </div>
+              <div class="sentence-options">
+                <label for="sentence-role">Sentence role</label>
+                <select id="sentence-role"><option value="background">Background / Introduction</option><option value="evidence">Evidence or result statement</option><option value="synthesis">Cross-study synthesis</option><option value="contrast">Contrast or disagreement</option><option value="limitation">Limitation / uncertainty</option><option value="discussion">Discussion interpretation</option><option value="implication">Cautious research implication</option></select>
+                <label for="sentence-tone">Style</label>
+                <select id="sentence-tone"><option value="concise academic">Concise academic</option><option value="highly cautious scientific">Highly cautious</option><option value="formal journal style">Formal journal style</option><option value="plain precise scientific">Plain and precise</option></select>
+                <label for="sentence-topic">Topic or intended claim</label>
+                <textarea id="sentence-topic" rows="3" placeholder="e.g. Explain how PDE4B inhibition may affect FVC decline, using only what the selected abstracts report."></textarea>
+                <label class="context-option"><input id="sentence-use-context" type="checkbox"> Use the last part of the current section as writing context</label>
+                <button id="generate-citation-sentences" class="ai-primary" type="button"><span>✦</span> Generate cited sentences</button>
+              </div>
+            </div>
+            <div id="sentence-writer-status" class="sentence-writer-status" role="status" aria-live="polite"></div>
+            <div id="sentence-suggestions" class="sentence-suggestions"></div>
+            <p class="ai-disclaimer">The AI receives the selected abstracts and optional draft context. Verify every generated claim against the original article before use.</p>
+          </section>
         </div>
       </div>
     </section>

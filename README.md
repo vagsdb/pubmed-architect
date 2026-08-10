@@ -32,6 +32,13 @@ The web reader supports direct, user-supplied OpenAI and Anthropic API keys for:
 - testable future-research directions; and
 - optional independent dual-model reviews with a cross-model consensus.
 
+Article Builder also includes an **AI Citation Writer**. Select up to five saved
+PubMed records, choose the rhetorical role and academic tone, and generate three
+alternative manuscript-ready sentences. Each alternative is restricted to the
+selected abstracts, retains a PMID support trace for verification, and can be
+inserted directly at the editor cursor with author-year citations. Optional
+draft context is transmitted only when the user explicitly enables it.
+
 API keys are stored in `sessionStorage`, which limits them to the current browser
 tab session. They are sent directly to the selected provider and are never added
 to the repository, citation library, or exports. Because this is a static GitHub
