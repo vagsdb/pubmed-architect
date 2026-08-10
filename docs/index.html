@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#092a3d">
   <meta name="description" content="Search PubMed, collect citations, and shape a research article in your browser.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://eutils.ncbi.nlm.nih.gov https://api.openai.com https://api.anthropic.com; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
   <title>PubMed Architect</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -22,6 +23,7 @@
       <button class="nav-link" data-view="library">Library <span id="library-count" class="count">0</span></button>
       <button class="nav-link" data-view="builder">Article Builder</button>
       <button class="nav-link" data-view="about">About</button>
+      <button id="ai-settings-button" class="nav-link ai-config-link" type="button"><span class="ai-spark">✦</span> AI settings</button>
     </nav>
   </header>
 
@@ -67,6 +69,7 @@
       <div class="page-heading">
         <div><p class="eyebrow">Your evidence base</p><h1>Citation Library</h1></div>
         <div class="heading-actions">
+          <button id="ai-library-button" class="ai-primary" type="button"><span>✦</span> Analyze selected</button>
           <select id="citation-format" aria-label="Citation format"><option value="vancouver">Vancouver</option><option value="apa">APA</option><option value="bibtex">BibTeX</option></select>
           <button id="copy-library" class="secondary">Copy all</button>
           <button id="export-library">Export</button>
@@ -112,7 +115,34 @@
     <button class="dialog-close" aria-label="Close">×</button>
     <div id="dialog-content"></div>
   </dialog>
+  <dialog id="ai-settings-dialog" class="settings-dialog">
+    <button class="settings-close dialog-close" aria-label="Close">×</button>
+    <div class="settings-content">
+      <p class="eyebrow">Direct provider connection</p>
+      <h2>AI research settings</h2>
+      <p class="settings-intro">Keys are held only in this browser tab's session storage and sent directly to the provider you select. They are never committed to GitHub or included in exports.</p>
+      <div class="provider-settings">
+        <section>
+          <div class="provider-title"><strong>OpenAI</strong><span id="openai-key-status" class="key-status">Not configured</span></div>
+          <label for="openai-api-key">API key</label>
+          <div class="key-row"><input id="openai-api-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-…"><button class="secondary reveal-key" data-key-target="openai-api-key" type="button">Show</button></div>
+          <label for="openai-model">Model</label>
+          <select id="openai-model"><option value="gpt-5.6">GPT-5.6 — maximum research quality</option><option value="gpt-5.6-terra">GPT-5.6 terra — balanced</option><option value="gpt-5.6-luna">GPT-5.6 luna — fast</option></select>
+        </section>
+        <section>
+          <div class="provider-title"><strong>Anthropic</strong><span id="anthropic-key-status" class="key-status">Not configured</span></div>
+          <label for="anthropic-api-key">API key</label>
+          <div class="key-row"><input id="anthropic-api-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…"><button class="secondary reveal-key" data-key-target="anthropic-api-key" type="button">Show</button></div>
+          <label for="anthropic-model">Model</label>
+          <select id="anthropic-model"><option value="claude-sonnet-5">Claude Sonnet 5 — recommended</option><option value="claude-opus-5">Claude Opus 5 — deeper analysis</option><option value="claude-fable-5">Claude Fable 5 — maximum capability</option></select>
+        </section>
+      </div>
+      <div class="privacy-callout"><strong>Important:</strong> browser-entered keys are visible to JavaScript running on this page. Use restricted project keys with spending limits and clear them when finished. Do not paste patient-identifiable information into prompts.</div>
+      <div class="settings-actions"><button id="clear-ai-keys" class="secondary" type="button">Clear keys</button><button id="save-ai-settings" type="button">Save for this tab</button></div>
+    </div>
+  </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="app.js" defer></script>
+  <script src="ai.js" defer></script>
 </body>
 </html>

@@ -160,8 +160,11 @@ function showDetails(article) {
     <p class="authors">${escapeHTML(article.authors.join(", "))}</p>
     <h3>Abstract</h3><p>${escapeHTML(article.abstract || "No abstract available.").replace(/\n/g, "<br>")}</p>
     ${article.mesh.length ? `<h3>MeSH terms</h3><p>${article.mesh.map(escapeHTML).join(" · ")}</p>` : ""}
-    <div class="card-actions"><a class="button" href="${escapeHTML(articleURL(article))}" target="_blank" rel="noopener" style="text-decoration:none">Open article ↗</a></div>`;
+    <div class="card-actions"><a class="button" href="${escapeHTML(articleURL(article))}" target="_blank" rel="noopener" style="text-decoration:none">Open article ↗</a></div>
+    <div id="ai-reader-mount"></div>`;
+  $("#article-dialog").classList.add("ai-open");
   $("#article-dialog").showModal();
+  window.AIReader?.mount([article], {mode: "single"});
 }
 
 function saveArticle(article) {
@@ -207,7 +210,7 @@ function renderLibrary() {
   $("#library-empty").hidden = library.length > 0;
   const format = $("#citation-format").value;
   $("#library-list").innerHTML = library.map((article, index) => `<article class="library-card">
-    <div><div class="result-meta"><span class="pmid">PMID ${escapeHTML(article.pmid)}</span><span>${escapeHTML(article.journal)}</span><span>${escapeHTML(article.year)}</span></div><h2>${escapeHTML(article.title)}</h2><p class="authors">${escapeHTML(article.authors.join(", "))}</p></div>
+    <div><label class="library-select"><input type="checkbox" data-ai-select="${escapeHTML(article.pmid)}" ${window.AIReader?.isSelected(article.pmid) ? "checked" : ""}> Select for AI comparison</label><div class="result-meta"><span class="pmid">PMID ${escapeHTML(article.pmid)}</span><span>${escapeHTML(article.journal)}</span><span>${escapeHTML(article.year)}</span></div><h2>${escapeHTML(article.title)}</h2><p class="authors">${escapeHTML(article.authors.join(", "))}</p></div>
     <button class="icon-button" data-remove="${index}" aria-label="Remove citation">Remove</button>
     <pre class="formatted-citation">${escapeHTML(cite(article, format))}</pre>
   </article>`).join("");
@@ -319,8 +322,8 @@ $("#insert-citation-button").addEventListener("click", () => {
   saveDraft();
 });
 $("#export-article").addEventListener("click", () => { saveDraft(); download("pubmed-architect-article.md", articleMarkdown(), "text/markdown"); });
-$(".dialog-close").addEventListener("click", () => $("#article-dialog").close());
-$("#article-dialog").addEventListener("click", event => { if (event.target === $("#article-dialog")) $("#article-dialog").close(); });
+$("#article-dialog .dialog-close").addEventListener("click", () => { $("#article-dialog").close(); $("#article-dialog").classList.remove("ai-open"); });
+$("#article-dialog").addEventListener("click", event => { if (event.target === $("#article-dialog")) { $("#article-dialog").close(); $("#article-dialog").classList.remove("ai-open"); } });
 
 persistLibrary();
 renderBuilder();

@@ -20,6 +20,25 @@ The static web app lives in `docs/` and is deployed by GitHub Actions. It can:
 - format and export Vancouver, APA, or BibTeX citations; and
 - draft and export a structured Markdown manuscript.
 
+### AI Article Reader
+
+The web reader supports direct, user-supplied OpenAI and Anthropic API keys for:
+
+- grounded article Q&A with PMID-level source markers;
+- PICO and study-design extraction;
+- design-aware critical appraisal and risk-of-bias review;
+- endpoint, effect-estimate, confidence-interval, and p-value extraction;
+- multi-article comparison, synthesis, contradiction, and gap mapping;
+- testable future-research directions; and
+- optional independent dual-model reviews with a cross-model consensus.
+
+API keys are stored in `sessionStorage`, which limits them to the current browser
+tab session. They are sent directly to the selected provider and are never added
+to the repository, citation library, or exports. Because this is a static GitHub
+Pages app, users should use restricted project keys with spending limits and
+clear them when finished. A server-side proxy remains the recommended design for
+multi-user or production deployment.
+
 No patient data or citations are transmitted to this repository. Search terms
 are sent directly from the browser to the NCBI E-utilities API.
 
