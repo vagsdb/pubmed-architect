@@ -1,9 +1,29 @@
 # PubMed Architect
 
-A desktop research-article assistant built with Python / Tkinter.  
-**Zero external dependencies** — runs on the Python standard library alone.
+A research-article assistant with two interfaces:
 
-## Quick Start
+- **Web app:** <https://vagsdb.github.io/pubmed-architect/>
+- **Desktop app:** Python / Tkinter with zero external dependencies
+
+Both interfaces search NCBI PubMed. The web app adds a browser-local citation
+library and structured article builder, while the desktop and CLI tools retain
+the deeper workflows described below.
+
+## Web Interface
+
+The static web app lives in `docs/` and is deployed by GitHub Actions. It can:
+
+- search PubMed by topic, PMID, or DOI;
+- filter by article type and publication year;
+- display abstracts, MeSH terms, and source links;
+- store a private citation library in browser local storage;
+- format and export Vancouver, APA, or BibTeX citations; and
+- draft and export a structured Markdown manuscript.
+
+No patient data or citations are transmitted to this repository. Search terms
+are sent directly from the browser to the NCBI E-utilities API.
+
+## Desktop Quick Start
 
 ```bash
 python app.py

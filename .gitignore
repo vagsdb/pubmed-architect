@@ -1,0 +1,4 @@
+__pycache__/
+*.py[cod]
+project_data.json
+mined.json

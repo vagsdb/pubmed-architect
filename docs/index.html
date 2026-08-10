@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#092a3d">
+  <meta name="description" content="Search PubMed, collect citations, and shape a research article in your browser.">
+  <title>PubMed Architect</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,650&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="masthead">
+    <a class="brand" href="#search" aria-label="PubMed Architect home">
+      <span class="brand-mark" aria-hidden="true">P</span>
+      <span><strong>PubMed</strong> Architect</span>
+    </a>
+    <nav aria-label="Main navigation">
+      <button class="nav-link active" data-view="search">Search</button>
+      <button class="nav-link" data-view="library">Library <span id="library-count" class="count">0</span></button>
+      <button class="nav-link" data-view="builder">Article Builder</button>
+      <button class="nav-link" data-view="about">About</button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="search-view" class="view active">
+      <div class="hero">
+        <p class="eyebrow">NCBI literature workspace</p>
+        <h1>From search question<br>to structured evidence.</h1>
+        <p class="hero-copy">Search PubMed by topic, PMID, or DOI. Review abstracts, save sources, and build a manuscript without leaving your browser.</p>
+        <form id="search-form" class="search-box">
+          <label class="sr-only" for="query">Search PubMed</label>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.35-4.35m2.35-5.15A7.5 7.5 0 1 1 4 11.5a7.5 7.5 0 0 1 15 0Z"/></svg>
+          <input id="query" autocomplete="off" placeholder="e.g. nerandomilast idiopathic pulmonary fibrosis" required>
+          <button type="submit">Search</button>
+        </form>
+        <div class="filters" aria-label="Search filters">
+          <label>Article type
+            <select id="article-type">
+              <option value="">All types</option>
+              <option value="clinical trial[pt]">Clinical trial</option>
+              <option value="randomized controlled trial[pt]">Randomized trial</option>
+              <option value="review[pt]">Review</option>
+              <option value="systematic review[pt]">Systematic review</option>
+              <option value="meta-analysis[pt]">Meta-analysis</option>
+            </select>
+          </label>
+          <label>From year <input id="from-year" type="number" min="1800" max="2100" placeholder="2000"></label>
+          <label>To year <input id="to-year" type="number" min="1800" max="2100" placeholder="2026"></label>
+          <label>Results
+            <select id="result-limit"><option>10</option><option selected>20</option><option>50</option><option>100</option></select>
+          </label>
+          <label>Sort
+            <select id="sort"><option value="relevance">Relevance</option><option value="pub+date">Newest</option><option value="first+author">First author</option></select>
+          </label>
+        </div>
+      </div>
+
+      <div id="search-status" class="status" role="status" aria-live="polite"></div>
+      <div id="results" class="results"></div>
+    </section>
+
+    <section id="library-view" class="view page-view">
+      <div class="page-heading">
+        <div><p class="eyebrow">Your evidence base</p><h1>Citation Library</h1></div>
+        <div class="heading-actions">
+          <select id="citation-format" aria-label="Citation format"><option value="vancouver">Vancouver</option><option value="apa">APA</option><option value="bibtex">BibTeX</option></select>
+          <button id="copy-library" class="secondary">Copy all</button>
+          <button id="export-library">Export</button>
+        </div>
+      </div>
+      <div id="library-empty" class="empty-state">
+        <div class="empty-icon">⌕</div><h2>No saved sources yet</h2><p>Search PubMed and add articles to build your working library.</p><button data-go="search">Start searching</button>
+      </div>
+      <div id="library-list" class="library-list"></div>
+    </section>
+
+    <section id="builder-view" class="view page-view">
+      <div class="page-heading">
+        <div><p class="eyebrow">Structured drafting</p><h1>Article Builder</h1></div>
+        <div class="heading-actions"><span id="save-state" class="save-state">Saved locally</span><button id="export-article">Export Markdown</button></div>
+      </div>
+      <div class="builder-layout">
+        <aside id="section-nav" class="section-nav" aria-label="Article sections"></aside>
+        <div class="editor-card">
+          <div class="editor-head"><label id="section-label" for="section-editor">Title</label><span id="word-count">0 words</span></div>
+          <textarea id="section-editor" spellcheck="true" placeholder="Begin writing…"></textarea>
+          <div class="citation-insert">
+            <select id="insert-citation"><option value="">Insert citation…</option></select>
+            <button id="insert-citation-button" class="secondary">Insert</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="about-view" class="view page-view narrow">
+      <p class="eyebrow">About the project</p>
+      <h1>Research tools, without the clutter.</h1>
+      <div class="about-grid">
+        <article><span>01</span><h2>Live PubMed search</h2><p>Queries NCBI E-utilities directly. Search by keywords, PMID, or DOI and inspect complete abstracts.</p></article>
+        <article><span>02</span><h2>Private by design</h2><p>Your library and article draft remain in this browser's local storage. No account or server is involved.</p></article>
+        <article><span>03</span><h2>Open workflow</h2><p>Export citations and manuscripts in portable formats, then continue in your preferred research environment.</p></article>
+      </div>
+      <p class="disclaimer">PubMed Architect is a research aid, not a substitute for critical appraisal or clinical judgment. PubMed data are provided by the U.S. National Library of Medicine.</p>
+    </section>
+  </main>
+
+  <dialog id="article-dialog">
+    <button class="dialog-close" aria-label="Close">×</button>
+    <div id="dialog-content"></div>
+  </dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="app.js" defer></script>
+</body>
+</html>
