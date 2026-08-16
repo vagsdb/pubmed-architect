@@ -13,10 +13,14 @@ the deeper workflows described below.
 
 The static web app lives in `docs/` and is deployed by GitHub Actions. It can:
 
+- open on a Research OS dashboard with a local reproducibility ledger;
 - search PubMed by topic, PMID, or DOI;
 - filter by article type and publication year;
 - display abstracts, MeSH terms, and source links;
 - store a private citation library in browser local storage;
+- create an Evidence Matrix with transparent metadata/reporting screening grades;
+- generate a local article–MeSH knowledge graph (co-indexing, not causality);
+- maintain and refresh a versioned Living Review protocol;
 - format and export Vancouver, APA, or BibTeX citations; and
 - draft and export a structured Markdown manuscript.
 
@@ -45,6 +49,24 @@ to the repository, citation library, or exports. Because this is a static GitHub
 Pages app, users should use restricted project keys with spending limits and
 clear them when finished. A server-side proxy remains the recommended design for
 multi-user or production deployment.
+
+The AI settings panel can query each provider's official Models API after a key
+is saved, so the model selector can be refreshed without a code release. The
+bundled defaults remain available as a fallback. Optional NCBI contact email and
+E-utilities API key values are also session-scoped and are appended only to NCBI
+requests.
+
+Every completed AI task writes a local audit entry containing the task, provider,
+model, date, and source PMIDs. Prompt text, API keys, and patient data are not
+written to the audit ledger.
+
+### Evidence Matrix interpretation
+
+The matrix grade is a deterministic screening aid based on publication type and
+five metadata/abstract-reporting signals (abstract, design indexing, outcome
+language, sample-size reporting, and MeSH indexing). It is not a clinical
+evidence grade and does not replace RoB 2, ROBINS-I, QUADAS-2, GRADE, or full-text
+critical appraisal.
 
 No patient data or citations are transmitted to this repository. Search terms
 are sent directly from the browser to the NCBI E-utilities API.

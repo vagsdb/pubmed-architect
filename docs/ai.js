@@ -103,6 +103,7 @@ Return only the requested JSON object, with no Markdown fences or surrounding pr
   function saveConfig(next) {
     sessionStorage.setItem(CONFIG_KEY, JSON.stringify(next));
     updateKeyStatus();
+    window.dispatchEvent(new CustomEvent("pubmedarchitect:ai-config"));
   }
 
   function updateKeyStatus() {
@@ -116,14 +117,60 @@ Return only the requested JSON object, with no Markdown fences or surrounding pr
       element.textContent = ready ? "Ready" : "Not configured";
       element.classList.toggle("ready", ready);
     });
+    const ncbiStatus = document.querySelector("#ncbi-key-status");
+    if (ncbiStatus) {
+      ncbiStatus.textContent = current.ncbiApiKey ? "API key ready" : "Standard access";
+      ncbiStatus.classList.toggle("ready", Boolean(current.ncbiApiKey));
+    }
+  }
+
+  function setModelOptions(selector, models, selected) {
+    const select = document.querySelector(selector);
+    if (!select || !models.length) return;
+    const unique = [...new Map(models.map(item => [item.id, item])).values()];
+    select.innerHTML = unique.map(item => `<option value="${escapeHTML(item.id)}">${escapeHTML(item.label || item.id)}</option>`).join("");
+    if (unique.some(item => item.id === selected)) select.value = selected;
+  }
+
+  async function refreshModels(provider, button) {
+    const current = config();
+    const key = provider === "openai" ? current.openaiKey : current.anthropicKey;
+    if (!key) return toast(`Enter and save the ${provider === "openai" ? "OpenAI" : "Anthropic"} key first`);
+    button.disabled = true;
+    button.textContent = "Loading…";
+    try {
+      const response = await fetch(provider === "openai" ? "https://api.openai.com/v1/models" : "https://api.anthropic.com/v1/models?limit=100", {
+        headers: provider === "openai"
+          ? {"Authorization": `Bearer ${key}`}
+          : {"x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true"}
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(friendlyAPIError(provider, response, payload));
+      const models = provider === "openai"
+        ? (payload.data || []).filter(item => /^(gpt-|o[134]|chatgpt-)/i.test(item.id) && !/(audio|realtime|transcri|tts|image|search|moderation)/i.test(item.id)).sort((a, b) => (b.created || 0) - (a.created || 0)).map(item => ({id: item.id, label: item.shutdown_date ? `${item.id} · retires ${item.shutdown_date}` : item.id}))
+        : (payload.data || []).map(item => ({id: item.id, label: item.display_name ? `${item.display_name} · ${item.id}` : item.id}));
+      setModelOptions(provider === "openai" ? "#openai-model" : "#anthropic-model", models, provider === "openai" ? current.openaiModel : current.anthropicModel);
+      toast(`${models.length} available ${provider === "openai" ? "OpenAI" : "Claude"} models loaded`);
+    } catch (error) {
+      toast(error.message);
+    } finally {
+      button.disabled = false;
+      button.textContent = "Refresh";
+    }
   }
 
   function openSettings() {
     const current = config();
     document.querySelector("#openai-api-key").value = current.openaiKey || "";
     document.querySelector("#anthropic-api-key").value = current.anthropicKey || "";
-    document.querySelector("#openai-model").value = current.openaiModel || "gpt-5.6";
-    document.querySelector("#anthropic-model").value = current.anthropicModel || "claude-sonnet-5";
+    document.querySelector("#ncbi-email").value = current.ncbiEmail || "";
+    document.querySelector("#ncbi-api-key").value = current.ncbiApiKey || "";
+    const modelValues = [["#openai-model", current.openaiModel || "gpt-5.6"], ["#anthropic-model", current.anthropicModel || "claude-sonnet-5"]];
+    modelValues.forEach(([selector, value]) => {
+      const select = document.querySelector(selector);
+      if (![...select.options].some(option => option.value === value)) select.add(new Option(`${value} · saved`, value));
+      select.value = value;
+    });
     updateKeyStatus();
     document.querySelector("#ai-settings-dialog").showModal();
   }
@@ -285,6 +332,7 @@ Return only the requested JSON object, with no Markdown fences or surrounding pr
       const prompt = taskPrompt(task, question, supplemental);
       const result = provider === "dual" ? await callDual(prompt, requestController.signal) : await callProvider(provider, prompt, requestController.signal);
       document.querySelector("#ai-output-body").innerHTML = provider === "dual" ? renderDual(result, label) : renderResult(result, label);
+      window.ResearchOS?.recordTrace({label, task, provider: provider === "dual" ? "OpenAI + Claude" : result.provider, model: provider === "dual" ? `${result.openai.model} + ${result.anthropic.model}` : result.model, pmids: activeSources.map(item => item.pmid)});
     } catch (error) {
       if (error.name === "AbortError") return;
       document.querySelector("#ai-output-body").innerHTML = `<h3>Analysis could not be completed</h3><p>${escapeHTML(error.message)}</p><p>Check the provider key, model access, billing limits, and browser network policy.</p>`;
@@ -396,6 +444,7 @@ Return only the requested JSON object, with no Markdown fences or surrounding pr
       if (provider === "openai") Object.assign(options, {schema: SENTENCE_SCHEMA, schemaName: "citation_sentences"});
       const result = await callProvider(provider, prompt, requestController.signal, options);
       renderSentenceSuggestions(parseSentencePayload(result.text), sources, result);
+      window.ResearchOS?.recordTrace({label: "AI Citation Writer", task: "citation-sentence", provider: result.provider, model: result.model, pmids: sources.map(item => item.pmid)});
     } catch (error) {
       if (error.name === "AbortError") return;
       status.textContent = error.message;
@@ -439,7 +488,9 @@ Return only the requested JSON object, with no Markdown fences or surrounding pr
       openaiKey: document.querySelector("#openai-api-key").value.trim(),
       anthropicKey: document.querySelector("#anthropic-api-key").value.trim(),
       openaiModel: document.querySelector("#openai-model").value,
-      anthropicModel: document.querySelector("#anthropic-model").value
+      anthropicModel: document.querySelector("#anthropic-model").value,
+      ncbiEmail: document.querySelector("#ncbi-email").value.trim(),
+      ncbiApiKey: document.querySelector("#ncbi-api-key").value.trim()
     });
     document.querySelector("#ai-settings-dialog").close();
     toast("AI settings saved for this tab");
@@ -448,7 +499,9 @@ Return only the requested JSON object, with no Markdown fences or surrounding pr
     sessionStorage.removeItem(CONFIG_KEY);
     document.querySelector("#openai-api-key").value = "";
     document.querySelector("#anthropic-api-key").value = "";
+    document.querySelector("#ncbi-api-key").value = "";
     updateKeyStatus();
+    window.dispatchEvent(new CustomEvent("pubmedarchitect:ai-config"));
     toast("AI keys cleared");
   });
   document.querySelector("#ai-settings-dialog .settings-close").addEventListener("click", () => document.querySelector("#ai-settings-dialog").close());
@@ -457,6 +510,7 @@ Return only the requested JSON object, with no Markdown fences or surrounding pr
     input.type = input.type === "password" ? "text" : "password";
     button.textContent = input.type === "password" ? "Show" : "Hide";
   }));
+  document.querySelectorAll("[data-provider-models]").forEach(button => button.addEventListener("click", () => refreshModels(button.dataset.providerModels, button)));
   document.querySelector("#ai-library-button").addEventListener("click", openLibraryLab);
   document.querySelector("#sentence-ai-settings").addEventListener("click", openSettings);
   document.querySelector("#generate-citation-sentences").addEventListener("click", generateCitationSentences);
@@ -501,6 +555,7 @@ Return only the requested JSON object, with no Markdown fences or surrounding pr
   });
 
   updateKeyStatus();
+  window.PubMedAIConfig = {get: config};
   window.AIReader = {mount, isSelected: pmid => selected.has(pmid), openSettings, refreshBuilderCitations};
   refreshBuilderCitations(library);
 })();

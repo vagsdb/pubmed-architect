@@ -38,6 +38,7 @@ function setView(name) {
   $$(".nav-link").forEach(link => link.classList.toggle("active", link.dataset.view === name));
   if (name === "library") renderLibrary();
   if (name === "builder") renderBuilder();
+  if (["dashboard", "evidence", "review"].includes(name)) window.ResearchOS?.render(name);
   window.scrollTo({top: 0, behavior: "smooth"});
   history.replaceState(null, "", `#${name}`);
 }
@@ -90,6 +91,9 @@ function parseArticles(xmlText) {
 
 async function request(endpoint, params) {
   params.set("tool", "pubmed_architect_web");
+  const ncbi = window.PubMedAIConfig?.get?.() || {};
+  if (ncbi.ncbiEmail) params.set("email", ncbi.ncbiEmail);
+  if (ncbi.ncbiApiKey) params.set("api_key", ncbi.ncbiApiKey);
   const response = await fetch(`${API}/${endpoint}?${params}`);
   if (!response.ok) throw new Error(`PubMed request failed (${response.status}).`);
   return response;
@@ -143,7 +147,7 @@ function resultCard(article, index) {
     <div class="card-actions">
       <button class="text-button" data-action="details" data-index="${index}">Read abstract</button>
       <button class="secondary ${isSaved ? "saved" : ""}" data-action="save" data-index="${index}">${isSaved ? "✓ Saved" : "+ Add to library"}</button>
-      <a class="button secondary" href="${escapeHTML(articleURL(article))}" target="_blank" rel="noopener" style="padding:8px 12px;font-size:12px;text-decoration:none">Open source ↗</a>
+      <a class="button secondary source-button" href="${escapeHTML(articleURL(article))}" target="_blank" rel="noopener">Open source ↗</a>
     </div>
   </article>`;
 }
@@ -160,7 +164,7 @@ function showDetails(article) {
     <p class="authors">${escapeHTML(article.authors.join(", "))}</p>
     <h3>Abstract</h3><p>${escapeHTML(article.abstract || "No abstract available.").replace(/\n/g, "<br>")}</p>
     ${article.mesh.length ? `<h3>MeSH terms</h3><p>${article.mesh.map(escapeHTML).join(" · ")}</p>` : ""}
-    <div class="card-actions"><a class="button" href="${escapeHTML(articleURL(article))}" target="_blank" rel="noopener" style="text-decoration:none">Open article ↗</a></div>
+    <div class="card-actions"><a class="button source-link" href="${escapeHTML(articleURL(article))}" target="_blank" rel="noopener">Open article ↗</a></div>
     <div id="ai-reader-mount"></div>`;
   $("#article-dialog").classList.add("ai-open");
   $("#article-dialog").showModal();
@@ -182,6 +186,7 @@ function persistLibrary() {
   localStorage.setItem(STORAGE.library, JSON.stringify(library));
   $("#library-count").textContent = library.length;
   updateCitationSelect();
+  window.dispatchEvent(new CustomEvent("pubmedarchitect:library", {detail: {count: library.length}}));
 }
 
 function initials(name = "") {
@@ -294,6 +299,15 @@ $("#search-form").addEventListener("submit", async event => {
     const response = await searchPubMed($("#query").value);
     results = response.articles;
     renderResults(response.total);
+    window.ResearchOS?.recordSearch({
+      query: $("#query").value.trim(),
+      articleType: $("#article-type").value,
+      fromYear: $("#from-year").value,
+      toYear: $("#to-year").value,
+      sort: $("#sort").value,
+      total: response.total,
+      pmids: results.map(article => article.pmid)
+    });
   } catch (error) {
     status.textContent = `${error.message} Please try again.`;
   }
@@ -329,4 +343,4 @@ $("#article-dialog").addEventListener("click", event => { if (event.target === $
 persistLibrary();
 renderBuilder();
 const initialView = location.hash.slice(1);
-setView(["search", "library", "builder", "about"].includes(initialView) ? initialView : "search");
+setView(["dashboard", "search", "library", "evidence", "builder", "review", "about"].includes(initialView) ? initialView : "dashboard");
