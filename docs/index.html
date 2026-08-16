@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#092a3d">
-  <meta name="description" content="Search PubMed, collect citations, and shape a research article in your browser.">
+  <meta name="description" content="A reproducible biomedical evidence workspace for PubMed discovery, appraisal, synthesis, and writing.">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://eutils.ncbi.nlm.nih.gov https://api.openai.com https://api.anthropic.com; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
   <title>PubMed Architect</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -19,16 +19,54 @@
       <span><strong>PubMed</strong> Architect</span>
     </a>
     <nav aria-label="Main navigation">
-      <button class="nav-link active" data-view="search">Search</button>
+      <button class="nav-link active" data-view="dashboard">Workspace</button>
+      <button class="nav-link" data-view="search">Search</button>
       <button class="nav-link" data-view="library">Library <span id="library-count" class="count">0</span></button>
+      <button class="nav-link" data-view="evidence">Evidence</button>
       <button class="nav-link" data-view="builder">Article Builder</button>
-      <button class="nav-link" data-view="about">About</button>
+      <button class="nav-link" data-view="review">Living Review</button>
       <button id="ai-settings-button" class="nav-link ai-config-link" type="button"><span class="ai-spark">✦</span> AI settings</button>
     </nav>
   </header>
 
   <main>
-    <section id="search-view" class="view active">
+    <section id="dashboard-view" class="view active">
+      <div class="os-hero">
+        <div>
+          <p class="eyebrow">Biomedical Evidence Operating System</p>
+          <h1>Search less.<br>Synthesize with traceability.</h1>
+          <p class="hero-copy">A local-first research workspace that connects PubMed discovery, source-bound AI appraisal, evidence matrices, living reviews, and manuscript drafting.</p>
+          <div class="hero-actions"><button data-go="search">Start an evidence search</button><button class="secondary" data-go="library">Open evidence library</button></div>
+        </div>
+        <aside class="system-status" aria-label="Workspace status">
+          <div class="status-head"><span class="live-dot"></span><strong>Workspace status</strong><span id="workspace-date"></span></div>
+          <div class="metric-grid">
+            <div><strong id="dashboard-library-count">0</strong><span>saved records</span></div>
+            <div><strong id="dashboard-study-count">0</strong><span>primary studies</span></div>
+            <div><strong id="dashboard-review-count">0</strong><span>reviews</span></div>
+            <div><strong id="dashboard-trace-count">0</strong><span>AI traces</span></div>
+          </div>
+          <div class="system-ledger">
+            <p><span>Evidence source</span><strong>NCBI PubMed live</strong></p>
+            <p><span>Storage</span><strong>Local browser only</strong></p>
+            <p><span>AI mode</span><strong id="dashboard-ai-status">Keys not configured</strong></p>
+          </div>
+        </aside>
+      </div>
+      <div class="os-modules">
+        <button class="module-card" data-go="search"><span>01</span><strong>Evidence Explorer</strong><small>Search by topic, PMID, or DOI with reproducible query metadata.</small></button>
+        <button class="module-card" data-go="evidence"><span>02</span><strong>Evidence Matrix</strong><small>Compare design, reporting completeness, and screening strength.</small></button>
+        <button class="module-card" data-go="library"><span>03</span><strong>AI Evidence Lab</strong><small>PICO, bias, statistics, contradictions, gaps, and grounded Q&amp;A.</small></button>
+        <button class="module-card" data-go="review"><span>04</span><strong>Living Review</strong><small>Version the question, search strategy, evidence set, and conclusions.</small></button>
+        <button class="module-card" data-go="builder"><span>05</span><strong>Writing Studio</strong><small>Compose manuscript sections with PMID-retaining citation sentences.</small></button>
+      </div>
+      <section class="recent-activity">
+        <div class="section-title"><div><p class="eyebrow">Reproducibility ledger</p><h2>Recent evidence activity</h2></div><button id="clear-activity" class="secondary" type="button">Clear ledger</button></div>
+        <div id="activity-list" class="activity-list"></div>
+      </section>
+    </section>
+
+    <section id="search-view" class="view">
       <div class="hero">
         <p class="eyebrow">NCBI literature workspace</p>
         <h1>From search question<br>to structured evidence.</h1>
@@ -63,6 +101,21 @@
 
       <div id="search-status" class="status" role="status" aria-live="polite"></div>
       <div id="results" class="results"></div>
+    </section>
+
+    <section id="evidence-view" class="view page-view wide-page">
+      <div class="page-heading">
+        <div><p class="eyebrow">Structured comparison</p><h1>Evidence Matrix</h1><p class="page-subtitle">A transparent screening layer derived from PubMed metadata and abstract reporting—not a substitute for a validated risk-of-bias instrument.</p></div>
+        <div class="heading-actions"><button id="export-matrix" class="secondary">Export CSV</button><button id="open-evidence-ai" class="ai-primary"><span>✦</span> Analyze selected</button></div>
+      </div>
+      <div class="evidence-toolbar">
+        <label>Filter design <select id="matrix-design-filter"><option value="">All designs</option><option value="randomized">Randomized trials</option><option value="observational">Observational</option><option value="review">Reviews</option><option value="other">Other</option></select></label>
+        <label>Minimum screening grade <select id="matrix-grade-filter"><option value="">Any grade</option><option value="A">A</option><option value="B">B or higher</option><option value="C">C or higher</option></select></label>
+        <span id="matrix-summary" class="matrix-summary"></span>
+      </div>
+      <div id="matrix-empty" class="empty-state"><div class="empty-icon">▦</div><h2>Your evidence matrix is empty</h2><p>Add PubMed records to the library; they will appear here automatically.</p><button data-go="search">Find evidence</button></div>
+      <div id="matrix-wrap" class="matrix-wrap"><table class="evidence-table"><thead><tr><th scope="col">Select</th><th scope="col">Study</th><th scope="col">Design</th><th scope="col">Reporting</th><th scope="col">Screening grade</th><th scope="col">Source</th></tr></thead><tbody id="matrix-body"></tbody></table></div>
+      <section class="graph-panel" aria-labelledby="graph-title"><div class="section-title"><div><p class="eyebrow">Metadata network</p><h2 id="graph-title">Evidence Knowledge Graph</h2></div><span class="graph-legend"><i></i> Article <i></i> MeSH / keyword</span></div><p class="page-subtitle">Connections are generated locally from shared MeSH terms in your saved records. They represent co-indexing, not biological causality.</p><div id="knowledge-graph" class="knowledge-graph"></div></section>
     </section>
 
     <section id="library-view" class="view page-view">
@@ -124,6 +177,29 @@
       </div>
     </section>
 
+    <section id="review-view" class="view page-view wide-page">
+      <div class="page-heading"><div><p class="eyebrow">Versioned synthesis</p><h1>Living Review Builder</h1><p class="page-subtitle">Capture a reproducible review snapshot that can be refreshed when new PubMed records are found.</p></div><div class="heading-actions"><span id="review-save-state" class="save-state">Saved locally</span><button id="export-review">Export review snapshot</button></div></div>
+      <div class="review-layout">
+        <section class="protocol-card">
+          <h2>Protocol</h2>
+          <label>Review title<input id="review-title" placeholder="e.g. Nerandomilast in idiopathic pulmonary fibrosis"></label>
+          <label>Research question<textarea id="review-question" rows="3" placeholder="Define population, intervention/exposure, comparator, and outcomes."></textarea></label>
+          <label>PubMed search strategy<textarea id="review-query" rows="5" placeholder="Paste or build the exact reproducible PubMed query."></textarea></label>
+          <div class="protocol-grid"><label>Search date<input id="review-search-date" type="date"></label><label>Review version<input id="review-version" value="1.0.0"></label></div>
+          <label>Eligibility criteria<textarea id="review-eligibility" rows="4" placeholder="Inclusion and exclusion criteria."></textarea></label>
+          <label>Current conclusion<textarea id="review-conclusion" rows="5" placeholder="State the conclusion with calibrated certainty and unresolved uncertainty."></textarea></label>
+        </section>
+        <aside class="review-snapshot">
+          <h2>Evidence snapshot</h2>
+          <div class="snapshot-count"><strong id="review-record-count">0</strong><span>records in current library</span></div>
+          <dl><div><dt>Search date</dt><dd id="snapshot-date">Not set</dd></div><div><dt>Last refresh</dt><dd id="snapshot-refresh">Never</dd></div><div><dt>Primary studies</dt><dd id="snapshot-primary">0</dd></div><div><dt>Reviews</dt><dd id="snapshot-reviews">0</dd></div><div><dt>AI analyses logged</dt><dd id="snapshot-traces">0</dd></div></dl>
+          <button id="use-last-search" class="secondary" type="button">Use last PubMed search</button><button id="refresh-review" type="button">Refresh evidence search</button>
+          <p class="ai-disclaimer">Refresh reruns the saved PubMed query and reports newly detected PMIDs. It does not automatically alter your conclusion.</p>
+          <div id="refresh-result" class="refresh-result" role="status"></div>
+        </aside>
+      </div>
+    </section>
+
     <section id="about-view" class="view page-view narrow">
       <p class="eyebrow">About the project</p>
       <h1>Research tools, without the clutter.</h1>
@@ -152,14 +228,20 @@
           <label for="openai-api-key">API key</label>
           <div class="key-row"><input id="openai-api-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-…"><button class="secondary reveal-key" data-key-target="openai-api-key" type="button">Show</button></div>
           <label for="openai-model">Model</label>
-          <select id="openai-model"><option value="gpt-5.6">GPT-5.6 — maximum research quality</option><option value="gpt-5.6-terra">GPT-5.6 terra — balanced</option><option value="gpt-5.6-luna">GPT-5.6 luna — fast</option></select>
+          <div class="model-row"><select id="openai-model"><option value="gpt-5.6">GPT-5.6 — research default</option><option value="gpt-5.6-sol">GPT-5.6 sol — maximum reasoning</option><option value="gpt-5.6-terra">GPT-5.6 terra — balanced</option><option value="gpt-5.6-luna">GPT-5.6 luna — fast</option></select><button class="secondary refresh-models" data-provider-models="openai" type="button">Refresh</button></div>
         </section>
         <section>
           <div class="provider-title"><strong>Anthropic</strong><span id="anthropic-key-status" class="key-status">Not configured</span></div>
           <label for="anthropic-api-key">API key</label>
           <div class="key-row"><input id="anthropic-api-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…"><button class="secondary reveal-key" data-key-target="anthropic-api-key" type="button">Show</button></div>
           <label for="anthropic-model">Model</label>
-          <select id="anthropic-model"><option value="claude-sonnet-5">Claude Sonnet 5 — recommended</option><option value="claude-opus-5">Claude Opus 5 — deeper analysis</option><option value="claude-fable-5">Claude Fable 5 — maximum capability</option></select>
+          <div class="model-row"><select id="anthropic-model"><option value="claude-sonnet-5">Claude Sonnet 5 — recommended</option><option value="claude-opus-5">Claude Opus 5 — deeper analysis</option><option value="claude-fable-5">Claude Fable 5 — efficient</option></select><button class="secondary refresh-models" data-provider-models="anthropic" type="button">Refresh</button></div>
+        </section>
+        <section class="ncbi-settings">
+          <div class="provider-title"><strong>NCBI</strong><span id="ncbi-key-status" class="key-status">Standard access</span></div>
+          <label for="ncbi-email">Contact email</label><input id="ncbi-email" type="email" autocomplete="email" placeholder="researcher@example.org">
+          <label for="ncbi-api-key">E-utilities API key <span class="optional">optional</span></label><div class="key-row"><input id="ncbi-api-key" type="password" autocomplete="off" spellcheck="false"><button class="secondary reveal-key" data-key-target="ncbi-api-key" type="button">Show</button></div>
+          <p class="settings-note">Added to NCBI requests only. The API key remains in this tab session.</p>
         </section>
       </div>
       <div class="privacy-callout"><strong>Important:</strong> browser-entered keys are visible to JavaScript running on this page. Use restricted project keys with spending limits and clear them when finished. Do not paste patient-identifiable information into prompts.</div>
@@ -169,5 +251,6 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="app.js" defer></script>
   <script src="ai.js" defer></script>
+  <script src="research-os.js" defer></script>
 </body>
 </html>
