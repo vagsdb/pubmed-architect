@@ -989,13 +989,26 @@ _STOPWORDS = {
 }
 
 
-def _ask_search(client: PubMedClient, question: str, max_results: int) -> dict:
+def _ask_search(
+    client: PubMedClient,
+    question: str,
+    max_results: int,
+    sort: str = "relevance",
+    from_year: int | None = None,
+    to_year: int | None = None,
+) -> dict:
     """Run the full evidence-synthesis pipeline; returns a plain-text report + source list."""
 
     q_tokens = set(re.findall(r'\w{3,}', question.lower())) - _STOPWORDS
 
     # Search + fetch
-    pmids, _total = client.search(question, max_results)
+    pmids, _total = client.search(
+        question,
+        max_results,
+        sort=sort,
+        from_year=from_year,
+        to_year=to_year,
+    )
     if not pmids:
         return {"report": "No PubMed results for your question.\n\nTry rephrasing or using more specific medical terms.",
                 "sources": []}
@@ -1140,6 +1153,34 @@ class AskTab(ttk.Frame):
         )
         ttk.Button(bar, text="Ask", command=self._do_ask).pack(side=tk.LEFT)
 
+        # ── search options ──
+        options = ttk.LabelFrame(self, text="Search options")
+        options.pack(fill=tk.X, padx=8, pady=(0, 4))
+        orow = ttk.Frame(options)
+        orow.pack(fill=tk.X, padx=6, pady=4)
+
+        ttk.Label(orow, text="Sort:").pack(side=tk.LEFT)
+        self.sort_var = tk.StringVar(value="Relevance")
+        ttk.Combobox(
+            orow,
+            textvariable=self.sort_var,
+            values=list(_SORT_OPTIONS.keys()),
+            state="readonly",
+            width=16,
+        ).pack(side=tk.LEFT, padx=(2, 12))
+
+        ttk.Label(orow, text="From year:").pack(side=tk.LEFT)
+        self.from_year_var = tk.StringVar()
+        ttk.Entry(orow, textvariable=self.from_year_var, width=6).pack(
+            side=tk.LEFT, padx=(2, 8)
+        )
+
+        ttk.Label(orow, text="To year:").pack(side=tk.LEFT)
+        self.to_year_var = tk.StringVar()
+        ttk.Entry(orow, textvariable=self.to_year_var, width=6).pack(
+            side=tk.LEFT, padx=(2, 8)
+        )
+
         # ── paned: answer | source detail ──
         pw = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
         pw.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 8))
@@ -1170,6 +1211,13 @@ class AskTab(ttk.Frame):
         ttk.Button(btn_bar, text="Add to Citations", command=self._add_source).pack(side=tk.LEFT, padx=4)
         ttk.Button(btn_bar, text="Open in Browser", command=self._open_source).pack(side=tk.LEFT, padx=4)
 
+    @staticmethod
+    def _parse_year(var: tk.StringVar) -> int | None:
+        txt = var.get().strip()
+        if txt and txt.isdigit() and len(txt) == 4:
+            return int(txt)
+        return None
+
     def _do_ask(self):
         q = self.q_var.get().strip()
         if not q:
@@ -1179,9 +1227,19 @@ class AskTab(ttk.Frame):
         self.source_list.delete(0, tk.END)
 
         max_articles = self.max_var.get()
+        sort_key = _SORT_OPTIONS.get(self.sort_var.get(), "relevance")
+        from_year = self._parse_year(self.from_year_var)
+        to_year = self._parse_year(self.to_year_var)
 
         def _work():
-            return _ask_search(self.app.client, q, max_articles)
+            return _ask_search(
+                self.app.client,
+                q,
+                max_articles,
+                sort=sort_key,
+                from_year=from_year,
+                to_year=to_year,
+            )
 
         def _done(result, err):
             if err:

@@ -17,8 +17,8 @@ Subcommands
   rank     <query>           Score & rank mined articles against a query
   timeline                   Chronological view of your mined collection
   brief                      One-page research brief of your collection
-  scan     <query> [-n max]  Live search → full keyword/MeSH landscape report
-  ask      <question> [-n N]  Ask a question — evidence synthesis from PubMed
+  scan     <query> [options]  Live search → full keyword/MeSH landscape report
+  ask      <question> [opts]  Ask a question — evidence synthesis from PubMed
   mesh     <id> [id …]       MeSH terms for one or more articles
   meshmap  <id> [id …]       Cross-article MeSH analysis
   help                       Show this help
@@ -83,10 +83,10 @@ Examples
   pubmed insights brief
   pubmed insights mesh 39748378 38651330 36499287
   pubmed insights meshmap 39748378 10.1038/s41586-023-06291-2
-  pubmed insights scan "idiopathic pulmonary fibrosis" -n 100
+  pubmed insights scan "idiopathic pulmonary fibrosis" -n 100 --sort pub+date --from 2020
   pubmed insights scan "CRISPR cancer therapy"
   pubmed insights ask "Does metformin reduce cancer risk?"
-  pubmed insights ask "What is the role of gut microbiome in depression?" -n 80
+  pubmed insights ask "What is the role of gut microbiome in depression?" -n 80 --sort pub+date
   pubmed insights mined
   pubmed insights gaps
 
@@ -1002,8 +1002,15 @@ def cmd_brief() -> None:
 
 def cmd_scan(args: list) -> None:
     """Scan a PubMed query and map the full keyword / MeSH landscape."""
-    # Parse: words + optional -n max
+    # Parse: words + options
+    #   -n/--max <N>
+    #   --sort relevance|pub+date|first+author
+    #   --from <YYYY>
+    #   --to <YYYY>
     n_max = 50
+    sort = 'relevance'
+    from_year = None
+    to_year = None
     query_parts: list[str] = []
     i = 0
     while i < len(args):
@@ -1011,17 +1018,47 @@ def cmd_scan(args: list) -> None:
             try: n_max = min(int(args[i+1]), 200)
             except ValueError: pass
             i += 2
+        elif args[i] == '--sort' and i + 1 < len(args):
+            candidate = args[i + 1].strip()
+            if candidate in ('relevance', 'pub+date', 'first+author'):
+                sort = candidate
+            i += 2
+        elif args[i] == '--from' and i + 1 < len(args):
+            try:
+                from_year = int(args[i + 1])
+            except ValueError:
+                pass
+            i += 2
+        elif args[i] == '--to' and i + 1 < len(args):
+            try:
+                to_year = int(args[i + 1])
+            except ValueError:
+                pass
+            i += 2
         else:
             query_parts.append(args[i])
             i += 1
     query = ' '.join(query_parts)
     if not query:
-        _usage('scan <query> [-n max]')
+        _usage('scan <query> [-n max] [--sort relevance|pub+date|first+author] [--from YYYY] [--to YYYY]')
 
     print(f'{D}Searching PubMed: {B}{query}{R}  {D}(top {n_max})…{R}\n')
 
     # ── Search ───────────────────────────────────────────────────────────
-    raw       = _api(f'esearch.fcgi?db=pubmed&term={quote_plus(query)}&retmax={n_max}&retmode=json&sort=relevance')
+    params = [
+        'db=pubmed',
+        f'term={quote_plus(query)}',
+        f'retmax={n_max}',
+        'retmode=json',
+        f'sort={quote_plus(sort)}',
+    ]
+    if from_year is not None:
+        params.append(f'mindate={from_year}/01/01')
+        params.append('datetype=pdat')
+    if to_year is not None:
+        params.append(f'maxdate={to_year}/12/31')
+        params.append('datetype=pdat')
+    raw = _api(f'esearch.fcgi?{"&".join(params)}')
     sr        = json.loads(raw)['esearchresult']
     total     = int(sr['count'])
     pmids     = sr['idlist']
@@ -1244,6 +1281,9 @@ def _extract_evidence(abstract: str, q_tokens: set[str]) -> list[dict]:
 def cmd_ask(args: list) -> None:
     """Answer a natural-language question using PubMed evidence synthesis."""
     n_max = 60
+    sort = 'relevance'
+    from_year = None
+    to_year = None
     query_parts: list[str] = []
     i = 0
     while i < len(args):
@@ -1253,19 +1293,48 @@ def cmd_ask(args: list) -> None:
             except ValueError:
                 pass
             i += 2
+        elif args[i] == '--sort' and i + 1 < len(args):
+            candidate = args[i + 1].strip()
+            if candidate in ('relevance', 'pub+date', 'first+author'):
+                sort = candidate
+            i += 2
+        elif args[i] == '--from' and i + 1 < len(args):
+            try:
+                from_year = int(args[i + 1])
+            except ValueError:
+                pass
+            i += 2
+        elif args[i] == '--to' and i + 1 < len(args):
+            try:
+                to_year = int(args[i + 1])
+            except ValueError:
+                pass
+            i += 2
         else:
             query_parts.append(args[i])
             i += 1
     question = ' '.join(query_parts)
     if not question:
-        _usage('ask <question> [-n max]')
+        _usage('ask <question> [-n max] [--sort relevance|pub+date|first+author] [--from YYYY] [--to YYYY]')
 
     print(f'{D}Question:{R}  {B}{question}{R}')
     print(f'{D}Searching PubMed (top {n_max})…{R}\n')
 
     # ── Search ────────────────────────────────────────────────────────
-    raw   = _api(f'esearch.fcgi?db=pubmed&term={quote_plus(question)}'
-                 f'&retmax={n_max}&retmode=json&sort=relevance')
+    params = [
+        'db=pubmed',
+        f'term={quote_plus(question)}',
+        f'retmax={n_max}',
+        'retmode=json',
+        f'sort={quote_plus(sort)}',
+    ]
+    if from_year is not None:
+        params.append(f'mindate={from_year}/01/01')
+        params.append('datetype=pdat')
+    if to_year is not None:
+        params.append(f'maxdate={to_year}/12/31')
+        params.append('datetype=pdat')
+    raw = _api(f'esearch.fcgi?{"&".join(params)}')
     sr    = json.loads(raw)['esearchresult']
     total = int(sr['count'])
     pmids = sr['idlist']
@@ -1487,7 +1556,7 @@ def cmd_help() -> None:
 
 _DISPATCH = {
     'scan':     lambda args: cmd_scan(args),
-    'ask':      lambda args: cmd_ask(args) if args else _usage('ask <question> [-n max]'),
+    'ask':      lambda args: cmd_ask(args) if args else _usage('ask <question> [-n max] [--sort relevance|pub+date|first+author] [--from YYYY] [--to YYYY]'),
     'mesh':     lambda args: cmd_mesh(args),
     'meshmap':  lambda args: cmd_meshmap(args),
     'article':  lambda args: cmd_article(args[0]) if args else _usage('article <id>  (PMID or DOI)'),
